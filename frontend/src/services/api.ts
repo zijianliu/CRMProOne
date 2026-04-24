@@ -133,6 +133,11 @@ export const ticketApi = {
     return response.data;
   },
 
+  async getHandlerUsers(): Promise<User[]> {
+    const response = await api.get('/tickets/handlers');
+    return response.data;
+  },
+
   async getAttachmentConfig(): Promise<AttachmentConfig> {
     const response = await api.get('/tickets/attachments/config');
     return response.data;

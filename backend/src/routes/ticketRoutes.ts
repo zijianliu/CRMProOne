@@ -23,11 +23,12 @@ router.post(
   ticketController.createTicket
 );
 
-router.get('/', authMiddleware, ticketController.getTickets);
+router.get('/', optionalAuthMiddleware, ticketController.getTickets);
 
 router.get('/statistics', optionalAuthMiddleware, ticketController.getStatistics);
 
 router.get('/assignees', optionalAuthMiddleware, ticketController.getAllAssignees);
+router.get('/handlers', optionalAuthMiddleware, ticketController.getHandlerUsers);
 
 router.get('/attachments/config', ticketController.getAttachmentConfig);
 

@@ -30,7 +30,8 @@ import {
   TicketPriority, 
   PriorityLabelMap,
   AttachmentConfig,
-  formatFileSize
+  formatFileSize,
+  User
 } from '../types';
 
 const { TextArea } = Input;
@@ -52,7 +53,7 @@ const CreateTicket: React.FC = () => {
   const [attachmentConfig, setAttachmentConfig] = useState<AttachmentConfig | null>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
-  const [allAssignees, setAllAssignees] = useState<string[]>([]);
+  const [handlerUsers, setHandlerUsers] = useState<User[]>([]);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -65,15 +66,15 @@ const CreateTicket: React.FC = () => {
     };
     fetchConfig();
 
-    const fetchAssignees = async () => {
+    const fetchHandlers = async () => {
       try {
-        const assignees = await ticketApi.getAllAssignees();
-        setAllAssignees(assignees);
+        const handlers = await ticketApi.getHandlerUsers();
+        setHandlerUsers(handlers);
       } catch (error) {
-        console.error('Failed to fetch assignees:', error);
+        console.error('Failed to fetch handlers:', error);
       }
     };
-    fetchAssignees();
+    fetchHandlers();
   }, []);
 
   const maxAttachments = attachmentConfig?.maxAttachmentsPerTicket || 3;
@@ -248,9 +249,9 @@ const CreateTicket: React.FC = () => {
                   showSearch
                   optionFilterProp="children"
                 >
-                  {allAssignees.map(assignee => (
-                    <Option key={assignee} value={assignee}>
-                      {assignee}
+                  {handlerUsers.map(user => (
+                    <Option key={user.username} value={user.username}>
+                      {user.displayName} ({user.username})
                     </Option>
                   ))}
                 </Select>

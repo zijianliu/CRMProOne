@@ -5,6 +5,7 @@ import * as actionLogService from '../services/actionLogService';
 import * as attachmentService from '../services/attachmentService';
 import * as notificationService from '../services/notificationService';
 import * as slaService from '../services/slaService';
+import * as userService from '../services/userService';
 import { 
   TicketStatus, 
   TicketPriority, 
@@ -23,6 +24,7 @@ import {
   canUpdateTicketStatus,
   canUpdateTicketAssignee,
   canAddComment,
+  canCreateTicket,
   getTicketFilterForUser,
   isAdmin
 } from '../middleware/auth';
@@ -45,7 +47,7 @@ export const createTicket = async (req: AuthenticatedRequest, res: Response): Pr
       return;
     }
 
-    if (!canAddComment(currentUser, { submitter: currentUser.username } as any)) {
+    if (!canCreateTicket(currentUser)) {
       res.status(403).json({ error: '您没有权限创建工单' });
       return;
     }
@@ -94,10 +96,6 @@ export const getTickets = async (req: AuthenticatedRequest, res: Response): Prom
     } = req.query;
 
     const currentUser = req.currentUser;
-    if (!currentUser) {
-      res.status(401).json({ error: '用户未登录' });
-      return;
-    }
 
     const parsedPage = Math.max(1, parseInt(page as string, 10) || 1);
     const parsedPageSize = Math.max(1, Math.min(50, parseInt(pageSize as string, 10) || 10));
@@ -114,7 +112,13 @@ export const getTickets = async (req: AuthenticatedRequest, res: Response): Prom
       endDate as string
     );
 
-    const filteredData = result.data.filter(ticket => canViewTicket(currentUser, ticket));
+    let filteredData = result.data;
+    
+    if (currentUser) {
+      filteredData = result.data.filter(ticket => canViewTicket(currentUser, ticket));
+    } else {
+      filteredData = [];
+    }
 
     const dataWithSLA = filteredData.map(ticket => ({
       ...ticket,
@@ -433,6 +437,16 @@ export const getAllAssignees = async (req: Request, res: Response): Promise<void
   } catch (error) {
     console.error('Error getting assignees:', error);
     res.status(500).json({ error: 'Failed to get assignees' });
+  }
+};
+
+export const getHandlerUsers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const handlers = await userService.getHandlers();
+    res.json(handlers);
+  } catch (error) {
+    console.error('Error getting handlers:', error);
+    res.status(500).json({ error: 'Failed to get handlers' });
   }
 };
 

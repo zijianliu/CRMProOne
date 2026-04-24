@@ -8,7 +8,7 @@ const router = Router();
 
 const validRoles = Object.values(UserRole);
 
-router.get('/', authMiddleware, userController.getAllUsers);
+router.get('/', userController.getAllUsers);
 
 router.get('/me', authMiddleware, userController.getCurrentUser);
 

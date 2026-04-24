@@ -31,12 +31,11 @@ export function calculateSLAStatus(
     return SLAStatus.OVERDUE;
   }
 
-  const totalTime = deadline.getTime() - now.getTime();
-  const rules = SLA_RULES;
-  const totalDuration = Object.values(rules).reduce((acc, r) => acc + r.responseMinutes, 0);
-  const warningTime = deadline.getTime() * SLA_WARNING_THRESHOLD + now.getTime() * (1 - SLA_WARNING_THRESHOLD);
-
-  if (now.getTime() >= deadline.getTime() * SLA_WARNING_THRESHOLD) {
+  const timeRemaining = deadline.getTime() - now.getTime();
+  
+  const warningThreshold = 30 * 60 * 1000;
+  
+  if (timeRemaining <= warningThreshold) {
     return SLAStatus.WARNING;
   }
 

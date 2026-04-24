@@ -13,21 +13,44 @@ import {
 import * as actionLogService from './actionLogService';
 import * as slaService from './slaService';
 
+function safeParseDate(value: any): Date | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (isNaN(date.getTime()) || date.getTime() < 0) {
+    return null;
+  }
+  return date;
+}
+
 function rowToTicket(row: any[]): Ticket {
+  const createdAt = safeParseDate(row[11]) || new Date();
+  const priority = row[5] as TicketPriority;
+  
+  let responseDeadline = safeParseDate(row[7]);
+  let resolutionDeadline = safeParseDate(row[8]);
+  
+  if (!responseDeadline || !resolutionDeadline) {
+    const calculatedDeadlines = slaService.calculateDeadlines(priority, createdAt);
+    responseDeadline = responseDeadline || calculatedDeadlines.responseDeadline;
+    resolutionDeadline = resolutionDeadline || calculatedDeadlines.resolutionDeadline;
+  }
+
   return {
     id: row[0],
     title: row[1],
     description: row[2],
     submitter: row[3],
     assignee: row[4],
-    priority: row[5] as TicketPriority,
+    priority: priority,
     status: row[6] as TicketStatus,
-    responseDeadline: new Date(row[7]),
-    resolutionDeadline: new Date(row[8]),
-    responseTime: row[9] ? new Date(row[9]) : null,
-    resolutionTime: row[10] ? new Date(row[10]) : null,
-    createdAt: new Date(row[11]),
-    updatedAt: new Date(row[12])
+    responseDeadline: responseDeadline,
+    resolutionDeadline: resolutionDeadline,
+    responseTime: safeParseDate(row[9]),
+    resolutionTime: safeParseDate(row[10]),
+    createdAt: createdAt,
+    updatedAt: safeParseDate(row[12]) || new Date()
   };
 }
 

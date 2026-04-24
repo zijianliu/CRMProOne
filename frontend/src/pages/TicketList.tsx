@@ -31,13 +31,14 @@ import {
 } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import { ticketApi } from '../services/api';
+import { ticketApi, userApi } from '../services/api';
 import {
   Ticket,
   TicketStatus,
   TicketPriority,
   SLAStatus,
   SLAInfo,
+  User,
   StatusLabelMap,
   PriorityLabelMap,
   SLAStatusLabelMap,
@@ -73,6 +74,7 @@ const TicketList: React.FC = () => {
     myTickets: 0
   });
   const [allAssignees, setAllAssignees] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   
   const [params, setParams] = useState<FilterParams>({
     page: 1,
@@ -94,6 +96,15 @@ const TicketList: React.FC = () => {
       setAllAssignees(assignees);
     } catch (error) {
       console.error('Failed to fetch assignees:', error);
+    }
+  }, []);
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      const users = await userApi.getAllUsers();
+      setAllUsers(users);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
     }
   }, []);
 
@@ -136,7 +147,8 @@ const TicketList: React.FC = () => {
 
   useEffect(() => {
     fetchAssignees();
-  }, [fetchAssignees]);
+    fetchUsers();
+  }, [fetchAssignees, fetchUsers]);
 
   useEffect(() => {
     fetchStatistics();
@@ -261,7 +273,11 @@ const TicketList: React.FC = () => {
       title: '提交人',
       dataIndex: 'submitter',
       key: 'submitter',
-      width: 100
+      width: 100,
+      render: (submitter: string) => {
+        const user = allUsers.find(u => u.username === submitter);
+        return user ? user.displayName : submitter;
+      }
     },
     {
       title: '处理人',
@@ -271,7 +287,10 @@ const TicketList: React.FC = () => {
       render: (assignee: string | null) => (
         assignee ? (
           <Tag color="blue" icon={<UserOutlined />}>
-            {assignee}
+            {(() => {
+              const user = allUsers.find(u => u.username === assignee);
+              return user ? user.displayName : assignee;
+            })()}
           </Tag>
         ) : (
           <Tag color="default">未分配</Tag>

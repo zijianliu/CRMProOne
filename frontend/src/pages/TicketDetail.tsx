@@ -39,7 +39,7 @@ import {
   FilePdfOutlined
 } from '@ant-design/icons';
 import type { UploadProps, UploadFile } from 'antd/es/upload/interface';
-import { ticketApi } from '../services/api';
+import { ticketApi, userApi, getCurrentUser } from '../services/api';
 import {
   Ticket,
   TicketComment,
@@ -51,6 +51,7 @@ import {
   UserRole,
   SLAStatus,
   SLAInfo,
+  User,
   StatusLabelMap,
   PriorityLabelMap,
   ActionTypeLabelMap,
@@ -62,7 +63,6 @@ import {
   isAdmin,
   isHandler
 } from '../types';
-import { getCurrentUser } from '../services/api';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -95,7 +95,7 @@ const TicketDetail: React.FC = () => {
   const [comments, setComments] = useState<TicketComment[]>([]);
   const [actionLogs, setActionLogs] = useState<ActionLog[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [allAssignees, setAllAssignees] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [attachmentConfig, setAttachmentConfig] = useState<AttachmentConfig | null>(null);
   
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -165,10 +165,10 @@ const TicketDetail: React.FC = () => {
 
   const fetchAssignees = useCallback(async () => {
     try {
-      const assignees = await ticketApi.getAllAssignees();
-      setAllAssignees(assignees);
+      const users = await userApi.getAllUsers();
+      setAllUsers(users);
     } catch (error) {
-      console.error('Failed to fetch assignees:', error);
+      console.error('Failed to fetch users:', error);
     }
   }, []);
 
@@ -524,12 +524,18 @@ const TicketDetail: React.FC = () => {
 
             <Descriptions bordered column={{ xs: 1, sm: 2 }} style={{ marginBottom: 24 }}>
               <Descriptions.Item label="提交人">
-                {ticket.submitter}
+                {(() => {
+                  const user = allUsers.find(u => u.username === ticket.submitter);
+                  return user ? user.displayName : ticket.submitter;
+                })()}
               </Descriptions.Item>
               <Descriptions.Item label="处理人">
                 {ticket.assignee ? (
                   <Tag color="blue" icon={<UserOutlined />}>
-                    {ticket.assignee}
+                    {(() => {
+                      const user = allUsers.find(u => u.username === ticket.assignee);
+                      return user ? user.displayName : ticket.assignee;
+                    })()}
                   </Tag>
                 ) : (
                   <Tag color="default">未分配</Tag>
@@ -579,21 +585,41 @@ const TicketDetail: React.FC = () => {
                     </Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="剩余时间">
-                    {ticket.slaInfo.remainingMinutes !== null ? (
-                      ticket.slaInfo.remainingMinutes < 0 ? (
-                        <Text type="danger" strong>
-                          已超时 {Math.abs(ticket.slaInfo.remainingMinutes)} 分钟
-                        </Text>
-                      ) : (
-                        <Text>
-                          {ticket.slaInfo.remainingMinutes < 60 
-                            ? `${ticket.slaInfo.remainingMinutes} 分钟` 
-                            : `${Math.floor(ticket.slaInfo.remainingMinutes / 60)} 小时 ${ticket.slaInfo.remainingMinutes % 60} 分钟`}
-                        </Text>
-                      )
-                    ) : (
-                      <Text type="secondary">--</Text>
-                    )}
+                    {(() => {
+                      const deadline = new Date(ticket.slaInfo.resolutionDeadline);
+                      const now = new Date();
+                      
+                      if (isNaN(deadline.getTime())) {
+                        return <Text type="secondary">--</Text>;
+                      }
+                      
+                      const remainingMs = deadline.getTime() - now.getTime();
+                      const remainingMinutes = Math.floor(remainingMs / (1000 * 60));
+                      
+                      if (remainingMinutes < 0) {
+                        return (
+                          <Text type="danger" strong>
+                            已超时 {Math.abs(remainingMinutes)} 分钟
+                          </Text>
+                        );
+                      }
+                      
+                      if (remainingMinutes < 60) {
+                        return <Text>{remainingMinutes} 分钟</Text>;
+                      }
+                      
+                      const hours = Math.floor(remainingMinutes / 60);
+                      const minutes = remainingMinutes % 60;
+                      
+                      if (hours < 24) {
+                        return <Text>{hours} 小时 {minutes} 分钟</Text>;
+                      }
+                      
+                      const days = Math.floor(hours / 24);
+                      const remainingHours = hours % 24;
+                      
+                      return <Text>{days} 天 {remainingHours} 小时</Text>;
+                    })()}
                   </Descriptions.Item>
                 </Descriptions>
                 
@@ -605,18 +631,30 @@ const TicketDetail: React.FC = () => {
                   </Col>
                   <Col xs={12} sm={18}>
                     <Space>
-                      <Text>{new Date(ticket.slaInfo.responseDeadline).toLocaleString('zh-CN')}</Text>
+                      {(() => {
+                        const date = new Date(ticket.slaInfo.responseDeadline);
+                        if (isNaN(date.getTime())) {
+                          return <Text type="secondary">--</Text>;
+                        }
+                        return <Text>{date.toLocaleString('zh-CN')}</Text>;
+                      })()}
                       <Tag color={
                         ticket.slaInfo.responseStatus === SLAStatus.NORMAL ? 'success' :
                         ticket.slaInfo.responseStatus === SLAStatus.WARNING ? 'warning' : 'error'
                       }>
                         {SLAStatusLabelMap[ticket.slaInfo.responseStatus]}
                       </Tag>
-                      {ticket.slaInfo.actualResponseTime && (
-                        <Text type="success">
-                          实际响应: {new Date(ticket.slaInfo.actualResponseTime).toLocaleString('zh-CN')}
-                        </Text>
-                      )}
+                      {ticket.slaInfo.responseTime && (() => {
+                        const date = new Date(ticket.slaInfo.responseTime);
+                        if (isNaN(date.getTime())) {
+                          return null;
+                        }
+                        return (
+                          <Text type="success">
+                            实际响应: {date.toLocaleString('zh-CN')}
+                          </Text>
+                        );
+                      })()}
                     </Space>
                   </Col>
                 </Row>
@@ -627,18 +665,30 @@ const TicketDetail: React.FC = () => {
                   </Col>
                   <Col xs={12} sm={18}>
                     <Space>
-                      <Text>{new Date(ticket.slaInfo.resolveDeadline).toLocaleString('zh-CN')}</Text>
+                      {(() => {
+                        const date = new Date(ticket.slaInfo.resolutionDeadline);
+                        if (isNaN(date.getTime())) {
+                          return <Text type="secondary">--</Text>;
+                        }
+                        return <Text>{date.toLocaleString('zh-CN')}</Text>;
+                      })()}
                       <Tag color={
-                        ticket.slaInfo.resolveStatus === SLAStatus.NORMAL ? 'success' :
-                        ticket.slaInfo.resolveStatus === SLAStatus.WARNING ? 'warning' : 'error'
+                        ticket.slaInfo.resolutionStatus === SLAStatus.NORMAL ? 'success' :
+                        ticket.slaInfo.resolutionStatus === SLAStatus.WARNING ? 'warning' : 'error'
                       }>
-                        {SLAStatusLabelMap[ticket.slaInfo.resolveStatus]}
+                        {SLAStatusLabelMap[ticket.slaInfo.resolutionStatus]}
                       </Tag>
-                      {ticket.slaInfo.actualResolveTime && (
-                        <Text type="success">
-                          实际解决: {new Date(ticket.slaInfo.actualResolveTime).toLocaleString('zh-CN')}
-                        </Text>
-                      )}
+                      {ticket.slaInfo.resolutionTime && (() => {
+                        const date = new Date(ticket.slaInfo.resolutionTime);
+                        if (isNaN(date.getTime())) {
+                          return null;
+                        }
+                        return (
+                          <Text type="success">
+                            实际解决: {date.toLocaleString('zh-CN')}
+                          </Text>
+                        );
+                      })()}
                     </Space>
                   </Col>
                 </Row>
@@ -723,9 +773,9 @@ const TicketDetail: React.FC = () => {
                           showSearch
                           optionFilterProp="children"
                         >
-                          {allAssignees.map(assignee => (
-                            <Option key={assignee} value={assignee}>
-                              {assignee}
+                          {allUsers.filter(u => u.role === UserRole.HANDLER).map(user => (
+                            <Option key={user.username} value={user.username}>
+                              {user.displayName} ({user.username})
                             </Option>
                           ))}
                         </Select>
